@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>StoneBreaker</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #0e0c1a;
+      --surface:   #1a1730;
+      --surface2:  #221f3a;
+      --accent:    #f5a623;
+      --accent2:   #e8530a;
+      --purple:    #7c5cbf;
+      --purple2:   #a97de8;
+      --text:      #f0eaff;
+      --muted:     #7a7299;
+      --green:     #4ecb71;
+      --red:       #e84848;
+      --border:    rgba(124,92,191,0.25);
+      --radius:    16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── STARS BG ── */
+    #stars {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(1px 1px at 20% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 70% 25%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 45% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 85% 80%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 10% 75%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 55% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 30% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 92% 45%, rgba(255,255,255,0.4) 0%, transparent 100%);
+    }
+
+    /* ── LAYOUT ── */
+    #app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-box {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px 12px;
+    }
+    .stat-icon { font-size: 18px; }
+    .stat-info { display: flex; flex-direction: column; line-height: 1.2; }
+    .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-val { font-size: 15px; font-weight: 800; color: var(--text); font-family: 'Russo One', sans-serif; }
+    #balance-val { color: var(--accent); }
+    #rank-val { color: var(--purple2); }
+    #passive-val { color: var(--green); }
+
+    /* ── SCREENS ── */
+    #screens { flex: 1; overflow: hidden; position: relative; }
+    .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 16px; overflow-y: auto; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    /* ── MINE SCREEN ── */
+    #screen-mine { justify-content: center; gap: 24px; }
+
+    .mine-top { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .mine-title { font-family: 'Russo One', sans-serif; font-size: 22px; letter-spacing: 1px; color: var(--text); }
+    .mine-sub { font-size: 12px; color: var(--muted); }
+
+    /* BLOCK */
+    .block-area { position: relative; width: 180px; height: 180px; }
+
+    #block-btn {
+      width: 160px; height: 160px;
+      position: absolute; top: 10px; left: 10px;
+      border: none; cursor: pointer; background: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .block-inner {
+      width: 100%; height: 100%;
+      background: linear-gradient(145deg, #3d2e6e, #281f50);
+      border: 2px solid var(--purple);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 72px;
+      position: relative;
+      transition: transform 0.08s, box-shadow 0.08s;
+      box-shadow: 0 0 30px rgba(124,92,191,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+    #block-btn:active .block-inner {
+      transform: scale(0.92);
+      box-shadow: 0 0 60px rgba(245,166,35,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+    .block-inner.hit {
+      animation: blockHit 0.15s ease-out;
+    }
+    @keyframes blockHit {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(0.88) rotate(-3deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    /* cracks overlay */
+    .crack { position: absolute; inset: 0; border-radius: 20px; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+    .crack.show { opacity: 1; }
+    .crack svg { width: 100%; height: 100%; }
+
+    /* pickaxe swing */
+    #pickaxe-wrap {
+      position: absolute; top: -20px; right: -20px;
+      font-size: 42px;
+      transform-origin: bottom right;
+      transition: transform 0.12s;
+      pointer-events: none;
+      filter: drop-shadow(0 2px 8px rgba(245,166,35,0.5));
+    }
+    #pickaxe-wrap.swing { animation: swing 0.2s ease-out; }
+    @keyframes swing {
+      0%   { transform: rotate(0deg); }
+      40%  { transform: rotate(-45deg) scale(1.1); }
+      100% { transform: rotate(0deg); }
+    }
+
+    /* PROGRESS */
+    .progress-wrap { width: 100%; max-width: 300px; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .progress-header span { font-size: 12px; color: var(--muted); }
+    #cd-label { color: var(--accent); font-weight: 700; }
+    .progress-track {
+      height: 8px; background: var(--surface2);
+      border-radius: 4px; overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    #progress-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      border-radius: 4px;
+      transition: width 0.1s linear;
+    }
+
+    .mine-hint {
+      font-size: 13px; color: var(--muted); text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 16px;
+    }
+    .mine-hint strong { color: var(--accent); }
+
+    /* FLOAT TEXT */
+    .float-text {
+      position: fixed; font-size: 22px; font-weight: 800;
+      font-family: 'Russo One', sans-serif;
+      color: var(--accent);
+      pointer-events: none;
+      z-index: 999;
+      text-shadow: 0 0 12px rgba(245,166,35,0.6);
+      animation: floatUp 0.9s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      70%  { opacity: 1; transform: translateY(-50px) scale(1.15); }
+      100% { opacity: 0; transform: translateY(-80px) scale(0.9); }
+    }
+
+    /* ── UPGRADE SCREEN ── */
+    #screen-upgrade { gap: 14px; padding-top: 20px; }
+    .screen-title {
+      font-family: 'Russo One', sans-serif;
+      font-size: 20px; color: var(--text);
+      align-self: flex-start; margin-bottom: 4px;
+    }
+
+    .upg-card {
+      width: 100%; background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .upg-card.maxed { border-color: rgba(78,203,113,0.3); }
+
+    .upg-icon {
+      width: 50px; height: 50px; flex-shrink: 0;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+    }
+    .upg-icon.speed   { background: rgba(124,92,191,0.2); border: 1px solid rgba(124,92,191,0.4); }
+    .upg-icon.amount  { background: rgba(245,166,35,0.15); border: 1px solid rgba(245,166,35,0.3); }
+    .upg-icon.passive { background: rgba(78,203,113,0.15); border: 1px solid rgba(78,203,113,0.3); }
+
+    .upg-body { flex: 1; min-width: 0; }
+    .upg-name { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+    .upg-desc { font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
+    .upg-dots { display: flex; gap: 5px; margin-bottom: 8px; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .dot.filled { background: var(--purple2); border-color: var(--purple); }
+    .dot.filled.green { background: var(--green); border-color: rgba(78,203,113,0.6); }
+    .dot.filled.amber { background: var(--accent); border-color: rgba(245,166,35,0.6); }
+
+    .upg-btn {
+      padding: 7px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(124,92,191,0.5);
+      background: rgba(124,92,191,0.15);
+      color: var(--purple2);
+      font-size: 12px; font-weight: 700;
+      cursor: pointer;
+      font-family: 'Nunito', sans-serif;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .upg-btn:active { transform: scale(0.94); }
+    .upg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .upg-btn.maxed {
+      border-color: rgba(78,203,113,0.4);
+      background: rgba(78,203,113,0.1);
+      color: var(--green);
+    }
+
+    /* ── DONATE SCREEN ── */
+    #screen-donate { gap: 14px; padding-top: 20px; }
+    .donate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+    .donate-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 12px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.1s;
+      position: relative;
+    }
+    .donate-card:active { transform: scale(0.96); }
+    .donate-card.popular { border-color: rgba(245,166,35,0.5); }
+    .badge-popular {
+      position: absolute; top: -8px;
+      background: var(--accent); color: #000;
+      font-size: 9px; font-weight: 800;
+      padding: 2px 8px; border-radius: 6px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .donate-gem { font-size: 32px; }
+    .donate-amount { font-family: 'Russo One', sans-serif; font-size: 18px; color: var(--accent); }
+    .donate-price { font-size: 11px; color: var(--muted); }
+
+    /* ── MENU SCREEN ── */
+    #screen-menu { gap: 12px; padding-top: 20px; align-items: stretch; }
+    .menu-user {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .avatar {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+      color: #fff; font-family: 'Russo One', sans-serif;
+      flex-shrink: 0;
+    }
+    .user-info .user-name { font-size: 16px; font-weight: 800; }
+    .user-info .user-id { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .leaderboard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .lb-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px; font-weight: 800;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .lb-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row.me { background: rgba(124,92,191,0.12); }
+    .lb-rank { font-size: 13px; font-weight: 800; color: var(--muted); width: 22px; text-align: center; }
+    .lb-rank.gold   { color: #f5c842; }
+    .lb-rank.silver { color: #b0b8c4; }
+    .lb-rank.bronze { color: #c97c3a; }
+    .lb-name { flex: 1; font-size: 14px; font-weight: 600; }
+    .lb-score { font-size: 14px; font-weight: 800; color: var(--accent); font-family: 'Russo One', sans-serif; }
+
+    .menu-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .mstat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 14px;
+    }
+    .mstat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .mstat-val { font-size: 20px; font-weight: 800; font-family: 'Russo One', sans-serif; color: var(--text); }
+
+    /* ── TAB BAR ── */
+    #tabbar {
+      display: flex;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 4px 0;
+      padding-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+    .tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 6px 4px;
+      cursor: pointer;
+      border-radius: 12px;
+      margin: 0 4px;
+      transition: background 0.15s;
+      border: none; background: none;
+    }
+    .tab.active { background: rgba(124,92,191,0.2); }
+    .tab-icon { font-size: 20px; margin-bottom: 2px; }
+    .tab-label {
+      font-size: 10px; font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .tab.active .tab-label { color: var(--purple2); }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 18px;
+      font-size: 13px; font-weight: 700;
+      z-index: 999;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+    #toast.error { color: var(--red); }
+    #toast.success { color: var(--green); }
+  </style>
+</head>
+<body>
+<div id="stars"></div>
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="stat-box">
+      <span class="stat-icon">🪨</span>
+      <div class="stat-info">
+        <span class="stat-label">Камни</span>
+        <span class="stat-val" id="balance-val">0</span>
+      </div>
+    </div>
+    <div class="stat-box">
+      <span class="stat-icon">🏆</span>
+      <div class="stat-info">
+        <span class="stat-label">Рейтинг</span>
+        <span class="stat-val" id="rank-val">#—</span>
+      </div>
+    </div>
+    <div class="stat-box">
+      <span class="stat-icon">⚙️</span>
+      <div class="stat-info">
+        <span class="stat-label">Пассив</span>
+        <span class="stat-val" id="passive-val">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREENS -->
+  <div id="screens">
+
+    <!-- MINE -->
+    <div class="screen active" id="screen-mine">
+      <div class="mine-top">
+        <div class="mine-title">⛏ STONEBREAKER</div>
+        <div class="mine-sub">Бей камень — добывай ресурсы</div>
+      </div>
+
+      <div class="block-area">
+        <button id="block-btn" onclick="handleMine(event)">
+          <div class="block-inner" id="block-inner">
+            🪨
+            <div class="crack" id="crack1">
+              <svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M80 40 L65 80 L90 75 L70 120" stroke="rgba(0,0,0,0.5)" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="crack" id="crack2">
+              <svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M80 40 L65 80 L90 75 L70 120" stroke="rgba(0,0,0,0.5)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M110 50 L95 85 L115 90 L100 130" stroke="rgba(0,0,0,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="crack" id="crack3">
+              <svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M80 40 L65 80 L90 75 L70 120" stroke="rgba(0,0,0,0.5)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M110 50 L95 85 L115 90 L100 130" stroke="rgba(0,0,0,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M40 60 L55 95 L35 100 L50 135" stroke="rgba(0,0,0,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+        </button>
+        <div id="pickaxe-wrap">⛏</div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-header">
+          <span>Перезарядка</span>
+          <span id="cd-label">ГОТОВО!</span>
+        </div>
+        <div class="progress-track">
+          <div id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="mine-hint">
+        Добываешь: <strong id="mine-amount-hint">1 камень</strong> за удар
+      </div>
+    </div>
+
+    <!-- UPGRADE -->
+    <div class="screen" id="screen-upgrade">
+      <div class="screen-title">🔧 Прокачка</div>
+
+      <!-- SPEED -->
+      <div class="upg-card" id="card-speed">
+        <div class="upg-icon speed">⚡</div>
+        <div class="upg-body">
+          <div class="upg-name">Скорость кирки</div>
+          <div class="upg-desc" id="speed-desc">Уменьши перезарядку до 3 секунд</div>
+          <div class="upg-dots" id="speed-dots"></div>
+        </div>
+        <button class="upg-btn" id="btn-speed" onclick="upgrade('speed')">
+          <span id="speed-cost">50 🪨</span>
+        </button>
+      </div>
+
+      <!-- AMOUNT -->
+      <div class="upg-card" id="card-amount">
+        <div class="upg-icon amount">💎</div>
+        <div class="upg-body">
+          <div class="upg-name">Добыча за удар</div>
+          <div class="upg-desc" id="amount-desc">Увеличь добычу до 5 камней</div>
+          <div class="upg-dots" id="amount-dots"></div>
+        </div>
+        <button class="upg-btn" id="btn-amount" onclick="upgrade('amount')">
+          <span id="amount-cost">80 🪨</span>
+        </button>
+      </div>
+
+      <!-- PASSIVE -->
+      <div class="upg-card" id="card-passive">
+        <div class="upg-icon passive">🏭</div>
+        <div class="upg-body">
+          <div class="upg-name">Пассивная добыча</div>
+          <div class="upg-desc" id="passive-desc">Автоматически добывай камни</div>
+          <div class="upg-dots" id="passive-dots"></div>
+        </div>
+        <button class="upg-btn" id="btn-passive" onclick="upgrade('passive')">
+          <span id="passive-cost">120 🪨</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- DONATE -->
+    <div class="screen" id="screen-donate">
+      <div class="screen-title">💎 Магазин</div>
+      <div style="font-size:12px;color:var(--muted);align-self:flex-start;margin-top:-6px;margin-bottom:4px">Кристаллы для ускорения</div>
+      <div class="donate-grid">
+        <div class="donate-card" onclick="buyGems(50, 0.99)">
+          <div class="donate-gem">💎</div>
+          <div class="donate-amount">50</div>
+          <div class="donate-price">≈ 99₽</div>
+        </div>
+        <div class="donate-card popular" onclick="buyGems(150, 2.49)">
+          <div class="badge-popular">🔥 Хит</div>
+          <div class="donate-gem">💎💎</div>
+          <div class="donate-amount">150</div>
+          <div class="donate-price">≈ 249₽</div>
+        </div>
+        <div class="donate-card" onclick="buyGems(350, 4.99)">
+          <div class="donate-gem">💎💎💎</div>
+          <div class="donate-amount">350</div>
+          <div class="donate-price">≈ 499₽</div>
+        </div>
+        <div class="donate-card" onclick="buyGems(1000, 9.99)">
+          <div class="donate-gem">👑</div>
+          <div class="donate-amount">1000</div>
+          <div class="donate-price">≈ 999₽</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.6">
+        Покупки через Telegram Payments.<br>Кристаллы — внутриигровая валюта.
+      </div>
+    </div>
+
+    <!-- MENU -->
+    <div class="screen" id="screen-menu">
+      <div class="screen-title">☰ Меню</div>
+
+      <div class="menu-user">
+        <div class="avatar" id="avatar-text">?</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name">Игрок</div>
+          <div class="user-id" id="user-id">ID: —</div>
+        </div>
+      </div>
+
+      <div class="menu-stats">
+        <div class="mstat">
+          <div class="mstat-label">Всего добыто</div>
+          <div class="mstat-val" id="stat-total">0</div>
+        </div>
+        <div class="mstat">
+          <div class="mstat-label">Ударов</div>
+          <div class="mstat-val" id="stat-clicks">0</div>
+        </div>
+        <div class="mstat">
+          <div class="mstat-label">Уровень</div>
+          <div class="mstat-val" id="stat-level">1</div>
+        </div>
+        <div class="mstat">
+          <div class="mstat-label">Апгрейдов</div>
+          <div class="mstat-val" id="stat-upgrades">0</div>
+        </div>
+      </div>
+
+      <div class="leaderboard">
+        <div class="lb-header">🏆 Топ игроков</div>
+        <div id="leaderboard-rows"></div>
+      </div>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- TAB BAR -->
+  <div id="tabbar">
+    <button class="tab active" id="tab-mine"    onclick="switchTab('mine')">
+      <span class="tab-icon">⛏</span>
+      <span class="tab-label">Шахта</span>
+    </button>
+    <button class="tab" id="tab-upgrade" onclick="switchTab('upgrade')">
+      <span class="tab-icon">🔧</span>
+      <span class="tab-label">Прокачка</span>
+    </button>
+    <button class="tab" id="tab-donate"  onclick="switchTab('donate')">
+      <span class="tab-icon">💎</span>
+      <span class="tab-label">Донат</span>
+    </button>
+    <button class="tab" id="tab-menu"    onclick="switchTab('menu')">
+      <span class="tab-icon">☰</span>
+      <span class="tab-label">Меню</span>
+    </button>
+  </div>
+
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+/* ─────────────────────────────────────────
+   TELEGRAM INIT
+───────────────────────────────────────── */
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#0e0c1a');
+  tg.setBackgroundColor('#0e0c1a');
+}
+
+const tgUser = tg?.initDataUnsafe?.user;
+
+/* ─────────────────────────────────────────
+   GAME STATE
+───────────────────────────────────────── */
+const SPEED_COOLDOWNS  = [10, 8, 6, 4, 3];    // секунды между ударами
+const AMOUNT_VALUES    = [1, 2, 3, 4, 5];      // камней за удар
+const PASSIVE_INTERVAL = [0, 20, 15, 10, 7, 5]; // секунд между пассивной добычей
+const PASSIVE_AMOUNT   = [0, 1, 1, 2, 2, 3];   // камней пассивно
+const MAX_LVL          = 4;
+
+const UPG_BASE_COST = { speed: 50, amount: 80, passive: 120 };
+const UPG_MULT      = { speed: 2.0, amount: 1.9, passive: 1.8 };
+
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('stonebreaker_v1'));
+    if (s) return s;
+  } catch(e) {}
+  return {
+    balance:      0,
+    totalMined:   0,
+    clicks:       0,
+    upgrades:     0,
+    speedLvl:     0,
+    amountLvl:    0,
+    passiveLvl:   0,
+    cooldown:     0,
+    passiveTimer: 0,
+    lastSave:     Date.now(),
+  };
+}
+
+function saveState() {
+  state.lastSave = Date.now();
+  localStorage.setItem('stonebreaker_v1', JSON.stringify(state));
+}
+
+let state = loadState();
+
+// Оффлайн добыча за пропущенное время
+function calcOfflineEarnings() {
+  if (state.passiveLvl === 0) return;
+  const elapsed = (Date.now() - state.lastSave) / 1000;
+  if (elapsed < 5) return;
+  const interval = PASSIVE_INTERVAL[state.passiveLvl];
+  const amount   = PASSIVE_AMOUNT[state.passiveLvl];
+  const cycles   = Math.floor(elapsed / interval);
+  if (cycles > 0) {
+    const earned = cycles * amount;
+    state.balance    += earned;
+    state.totalMined += earned;
+    showToast(`⏰ Пока тебя не было: +${earned} 🪨`, 'success');
+  }
+}
+calcOfflineEarnings();
+
+/* ─────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────── */
+function getUpgCost(type) {
+  const lvl  = state[type + 'Lvl'];
+  const base = UPG_BASE_COST[type];
+  const mult = UPG_MULT[type];
+  return Math.round(base * Math.pow(mult, lvl));
+}
+
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 2200);
+}
+
+function spawnFloat(x, y, text) {
+  const el = document.createElement('div');
+  el.className = 'float-text';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+/* ─────────────────────────────────────────
+   MINE
+───────────────────────────────────────── */
+function handleMine(e) {
+  if (state.cooldown > 0) {
+    tg?.HapticFeedback?.impactOccurred('light');
+    return;
+  }
+
+  const amount = AMOUNT_VALUES[state.amountLvl];
+  state.balance    += amount;
+  state.totalMined += amount;
+  state.clicks     += 1;
+  state.cooldown    = SPEED_COOLDOWNS[state.speedLvl];
+
+  // animation
+  const bi = document.getElementById('block-inner');
+  bi.classList.remove('hit');
+  void bi.offsetWidth; // reflow
+  bi.classList.add('hit');
+
+  const pw = document.getElementById('pickaxe-wrap');
+  pw.classList.remove('swing');
+  void pw.offsetWidth;
+  pw.classList.add('swing');
+
+  // cracks: 1..3 based on lvl
+  updateCracks();
+
+  // haptic
+  tg?.HapticFeedback?.impactOccurred('medium');
+
+  // float +N
+  const rect = e.currentTarget.getBoundingClientRect();
+  const fx = rect.left + rect.width  / 2 - 20;
+  const fy = rect.top  + rect.height / 2 - 30;
+  spawnFloat(fx, fy, '+' + amount + ' 🪨');
+
+  saveState();
+  updateUI();
+}
+
+function updateCracks() {
+  // show cracks proportional to upgrade level (0-4)
+  const lvl = state.speedLvl + state.amountLvl;
+  document.getElementById('crack1').classList.toggle('show', lvl >= 2);
+  document.getElementById('crack2').classList.toggle('show', lvl >= 4);
+  document.getElementById('crack3').classList.toggle('show', lvl >= 6);
+}
+
+/* ─────────────────────────────────────────
+   UPGRADE
+───────────────────────────────────────── */
+function upgrade(type) {
+  const lvlKey = type + 'Lvl';
+  if (state[lvlKey] >= MAX_LVL) {
+    showToast('Уже максимальный уровень!', 'error');
+    return;
+  }
+  const cost = getUpgCost(type);
+  if (state.balance < cost) {
+    showToast('Не хватает камней 🪨', 'error');
+    tg?.HapticFeedback?.notificationOccurred('error');
+    return;
+  }
+  state.balance -= cost;
+  state[lvlKey]++;
+  state.upgrades++;
+  tg?.HapticFeedback?.notificationOccurred('success');
+  showToast('Улучшение получено! 🎉', 'success');
+  saveState();
+  updateUI();
+  updateUpgradeUI();
+}
+
+/* ─────────────────────────────────────────
+   TABS
+───────────────────────────────────────── */
+const TABS = ['mine', 'upgrade', 'donate', 'menu'];
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('screen-' + t).classList.toggle('active', t === name);
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+  });
+  if (name === 'menu') renderLeaderboard();
+}
+
+/* ─────────────────────────────────────────
+   DONATE (заглушка)
+───────────────────────────────────────── */
+function buyGems(amount, price) {
+  if (tg) {
+    tg.showAlert(`Покупка ${amount} кристаллов за ≈${Math.round(price * 100)}₽\nВ разработке — скоро!`);
+  } else {
+    showToast(`Покупка: ${amount} 💎 — скоро!`, 'success');
+  }
+}
+
+/* ─────────────────────────────────────────
+   LEADERBOARD (моковые данные)
+───────────────────────────────────────── */
+function renderLeaderboard() {
+  const mockPlayers = [
+    { name: 'MaxMiner', score: 12400 },
+    { name: 'RockStar', score: 9870  },
+    { name: 'DiamondQ', score: 7350  },
+    { name: 'StoneKing', score: 5100 },
+  ];
+
+  // Вставляем текущего игрока в список
+  const myName = tgUser?.first_name || 'Ты';
+  const allPlayers = [...mockPlayers, { name: myName, score: state.totalMined, isMe: true }];
+  allPlayers.sort((a, b) => b.score - a.score);
+
+  const rankClasses = ['gold', 'silver', 'bronze'];
+  const rankEmoji   = ['🥇', '🥈', '🥉'];
+
+  const container = document.getElementById('leaderboard-rows');
+  container.innerHTML = '';
+
+  allPlayers.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (p.isMe ? ' me' : '');
+
+    const rankEl = document.createElement('div');
+    rankEl.className = 'lb-rank ' + (rankClasses[i] || '');
+    rankEl.textContent = i < 3 ? rankEmoji[i] : (i + 1);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lb-name';
+    nameEl.textContent = p.name + (p.isMe ? ' (ты)' : '');
+
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'lb-score';
+    scoreEl.textContent = p.score.toLocaleString();
+
+    row.appendChild(rankEl);
+    row.appendChild(nameEl);
+    row.appendChild(scoreEl);
+    container.appendChild(row);
+
+    if (p.isMe) {
+      document.getElementById('rank-val').textContent = '#' + (i + 1);
+    }
+  });
+}
+
+/* ─────────────────────────────────────────
+   UPDATE UI
+───────────────────────────────────────── */
+function updateUI() {
+  document.getElementById('balance-val').textContent = state.balance.toLocaleString();
+  document.getElementById('mine-amount-hint').textContent =
+    AMOUNT_VALUES[state.amountLvl] + ' ' + (AMOUNT_VALUES[state.amountLvl] === 1 ? 'камень' : 'камня');
+
+  // cooldown
+  const total = SPEED_COOLDOWNS[state.speedLvl];
+  const ratio = state.cooldown <= 0 ? 1 : (1 - state.cooldown / total);
+  document.getElementById('progress-fill').style.width = Math.round(ratio * 100) + '%';
+
+  if (state.cooldown <= 0) {
+    document.getElementById('cd-label').textContent = 'ГОТОВО!';
+    document.getElementById('cd-label').style.color = 'var(--green)';
+  } else {
+    document.getElementById('cd-label').textContent = state.cooldown.toFixed(1) + 'с';
+    document.getElementById('cd-label').style.color = 'var(--accent)';
+  }
+
+  // passive
+  if (state.passiveLvl > 0) {
+    document.getElementById('passive-val').textContent =
+      PASSIVE_AMOUNT[state.passiveLvl] + '/' + PASSIVE_INTERVAL[state.passiveLvl] + 'с';
+  } else {
+    document.getElementById('passive-val').textContent = '—';
+  }
+
+  // stats
+  document.getElementById('stat-total').textContent    = state.totalMined.toLocaleString();
+  document.getElementById('stat-clicks').textContent   = state.clicks.toLocaleString();
+  document.getElementById('stat-level').textContent    = Math.floor((state.speedLvl + state.amountLvl + state.passiveLvl) / 3) + 1;
+  document.getElementById('stat-upgrades').textContent = state.upgrades;
+}
+
+function makeDots(containerId, lvl, colorClass) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  for (let i = 0; i < MAX_LVL; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < lvl ? ' filled ' + colorClass : '');
+    el.appendChild(d);
+  }
+}
+
+function updateUpgradeUI() {
+  const sl = state.speedLvl;
+  const al = state.amountLvl;
+  const pl = state.passiveLvl;
+
+  // speed
+  if (sl >= MAX_LVL) {
+    document.getElementById('speed-desc').textContent = `Макс! Перезарядка: ${SPEED_COOLDOWNS[sl]}с`;
+    document.getElementById('btn-speed').textContent  = 'MAX';
+    document.getElementById('btn-speed').classList.add('maxed');
+    document.getElementById('btn-speed').disabled = true;
+    document.getElementById('card-speed').classList.add('maxed');
+  } else {
+    const now  = SPEED_COOLDOWNS[sl];
+    const next = SPEED_COOLDOWNS[sl + 1];
+    document.getElementById('speed-desc').textContent = `${now}с → ${next}с перезарядка`;
+    document.getElementById('speed-cost').textContent = getUpgCost('speed') + ' 🪨';
+  }
+  makeDots('speed-dots', sl, 'amber');
+
+  // amount
+  if (al >= MAX_LVL) {
+    document.getElementById('amount-desc').textContent = `Макс! Добыча: ${AMOUNT_VALUES[al]} камней`;
+    document.getElementById('btn-amount').textContent  = 'MAX';
+    document.getElementById('btn-amount').classList.add('maxed');
+    document.getElementById('btn-amount').disabled = true;
+    document.getElementById('card-amount').classList.add('maxed');
+  } else {
+    const now  = AMOUNT_VALUES[al];
+    const next = AMOUNT_VALUES[al + 1];
+    document.getElementById('amount-desc').textContent = `${now} → ${next} камня за удар`;
+    document.getElementById('amount-cost').textContent = getUpgCost('amount') + ' 🪨';
+  }
+  makeDots('amount-dots', al, 'amber');
+
+  // passive
+  if (pl >= MAX_LVL) {
+    document.getElementById('passive-desc').textContent = `Макс! ${PASSIVE_AMOUNT[pl]} 🪨 каждые ${PASSIVE_INTERVAL[pl]}с`;
+    document.getElementById('btn-passive').textContent  = 'MAX';
+    document.getElementById('btn-passive').classList.add('maxed');
+    document.getElementById('btn-passive').disabled = true;
+    document.getElementById('card-passive').classList.add('maxed');
+  } else if (pl === 0) {
+    document.getElementById('passive-desc').textContent = 'Разблокировать: 1 🪨 каждые 20с';
+    document.getElementById('passive-cost').textContent = getUpgCost('passive') + ' 🪨';
+  } else {
+    const now  = PASSIVE_AMOUNT[pl] + ' 🪨 каждые ' + PASSIVE_INTERVAL[pl] + 'с';
+    const next = PASSIVE_AMOUNT[pl + 1] + ' 🪨 каждые ' + PASSIVE_INTERVAL[pl + 1] + 'с';
+    document.getElementById('passive-desc').textContent = `${now} → ${next}`;
+    document.getElementById('passive-cost').textContent = getUpgCost('passive') + ' 🪨';
+  }
+  makeDots('passive-dots', pl, 'green');
+}
+
+/* ─────────────────────────────────────────
+   USER INFO
+───────────────────────────────────────── */
+function initUserInfo() {
+  if (tgUser) {
+    const name = (tgUser.first_name + ' ' + (tgUser.last_name || '')).trim();
+    document.getElementById('user-name').textContent  = name;
+    document.getElementById('user-id').textContent   = 'ID: ' + tgUser.id;
+    document.getElementById('avatar-text').textContent = name[0].toUpperCase();
+  }
+}
+
+/* ─────────────────────────────────────────
+   GAME LOOP
+───────────────────────────────────────── */
+const TICK = 100; // ms
+let passiveTimer = state.passiveTimer || 0;
+let saveCounter  = 0;
+
+setInterval(() => {
+  const dt = TICK / 1000;
+
+  // cooldown
+  if (state.cooldown > 0) {
+    state.cooldown = Math.max(0, state.cooldown - dt);
+    updateUI();
+  }
+
+  // passive
+  if (state.passiveLvl > 0) {
+    passiveTimer += dt;
+    const interval = PASSIVE_INTERVAL[state.passiveLvl];
+    const amount   = PASSIVE_AMOUNT[state.passiveLvl];
+    if (passiveTimer >= interval) {
+      passiveTimer = 0;
+      state.balance    += amount;
+      state.totalMined += amount;
+      updateUI();
+    }
+  }
+
+  // save every 10s
+  saveCounter++;
+  if (saveCounter >= 100) {
+    saveCounter = 0;
+    state.passiveTimer = passiveTimer;
+    saveState();
+  }
+}, TICK);
+
+/* ─────────────────────────────────────────
+   INIT
+───────────────────────────────────────── */
+initUserInfo();
+updateUI();
+updateUpgradeUI();
+renderLeaderboard();
+</script>
+</body>
+</html>
